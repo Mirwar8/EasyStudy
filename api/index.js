@@ -28,6 +28,7 @@ let statsCollection;
 async function connectToDatabase() {
   if (db) return db;
   if (!client) {
+    if (!uri) throw new Error("MONGODB_URI no está definido");
     client = new MongoClient(uri);
     await client.connect();
   }
@@ -39,19 +40,6 @@ async function connectToDatabase() {
   statsCollection = db.collection("stats");
   return db;
 }
-
-// Middleware to ensure DB connection
-const dbMiddleware = async (req, res, next) => {
-  try {
-    await connectToDatabase();
-    next();
-  } catch (error) {
-    console.error("❌ Error conectando a MongoDB:", error);
-    res.status(500).json({ error: "Error de conexión a la base de datos" });
-  }
-};
-
-app.use(dbMiddleware);
 
 // Helper for JSON extraction
 function extractJSON(text) {
@@ -99,9 +87,28 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// --- ENDPOINTS ---
+const router = express.Router();
 
-app.post("/register", async (req, res) => {
+// Middleware to ensure DB connection per request
+router.use(async (req, res, next) => {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (error) {
+    console.error("❌ Error conectando a MongoDB:", error);
+    res
+      .status(500)
+      .json({
+        error: "Error de conexión a la base de datos: " + error.message,
+      });
+  }
+});
+
+router.get("/health", (req, res) =>
+  res.json({ status: "ok", message: "Servidor conectado" }),
+);
+
+router.post("/register", async (req, res) => {
   try {
     const { email, password, displayName } = req.body;
     if (!email || !password)
@@ -137,7 +144,7 @@ app.post("/register", async (req, res) => {
   }
 });
 
-app.post("/login", async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await usersCollection.findOne({ email });
@@ -153,7 +160,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.get("/decks", authMiddleware, async (req, res) => {
+router.get("/decks", authMiddleware, async (req, res) => {
   try {
     const decks = await decksCollection
       .find({ userId: req.userId })
@@ -165,7 +172,7 @@ app.get("/decks", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/decks", authMiddleware, async (req, res) => {
+router.post("/decks", authMiddleware, async (req, res) => {
   try {
     const { title, description, color, emoji } = req.body;
     if (!title) return res.status(400).json({ error: "Título obligatorio" });
@@ -186,7 +193,7 @@ app.post("/decks", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/cards/:deckId", authMiddleware, async (req, res) => {
+router.get("/cards/:deckId", authMiddleware, async (req, res) => {
   try {
     const { deckId } = req.params;
     const cards = await cardsCollection
@@ -199,7 +206,7 @@ app.get("/cards/:deckId", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/cards", authMiddleware, async (req, res) => {
+router.post("/cards", authMiddleware, async (req, res) => {
   try {
     const { deckId, type, front, back, options, correctIndex } = req.body;
     const newCard = {
@@ -224,7 +231,7 @@ app.post("/cards", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/ai/generate-cards", authMiddleware, async (req, res) => {
+router.post("/ai/generate-cards", authMiddleware, async (req, res) => {
   try {
     const { text, count = 5 } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
@@ -245,7 +252,7 @@ app.post("/ai/generate-cards", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/ai/generate-summary", authMiddleware, async (req, res) => {
+router.post("/ai/generate-summary", authMiddleware, async (req, res) => {
   try {
     const { text, title } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
@@ -265,7 +272,7 @@ app.post("/ai/generate-summary", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/summaries/:deckId", authMiddleware, async (req, res) => {
+router.get("/summaries/:deckId", authMiddleware, async (req, res) => {
   try {
     const summaries = await summariesCollection
       .find({ deckId: new ObjectId(req.params.deckId), userId: req.userId })
@@ -277,7 +284,7 @@ app.get("/summaries/:deckId", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/summaries", authMiddleware, async (req, res) => {
+router.post("/summaries", authMiddleware, async (req, res) => {
   try {
     const newSummary = {
       ...req.body,
@@ -292,7 +299,7 @@ app.post("/summaries", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/summary/:id", authMiddleware, async (req, res) => {
+router.get("/summary/:id", authMiddleware, async (req, res) => {
   try {
     const summary = await summariesCollection.findOne({
       _id: new ObjectId(req.params.id),
@@ -304,7 +311,7 @@ app.get("/summary/:id", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/stats/summary", authMiddleware, async (req, res) => {
+router.get("/stats/summary", authMiddleware, async (req, res) => {
   try {
     const stats = await statsCollection.find({ userId: req.userId }).toArray();
     const avgScore =
@@ -322,7 +329,7 @@ app.get("/stats/summary", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/stats", authMiddleware, async (req, res) => {
+router.post("/stats", authMiddleware, async (req, res) => {
   try {
     const newStat = {
       ...req.body,
@@ -336,5 +343,9 @@ app.post("/stats", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Error guardar stats" });
   }
 });
+
+// Mount router on BOTH paths to be 100% sure
+app.use("/api", router);
+app.use("/", router);
 
 export default app;

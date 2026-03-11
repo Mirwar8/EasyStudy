@@ -27,6 +27,7 @@ export default function QuizPage() {
   const [hasSaved, setHasSaved] = useState(false);
   const [selectedOption, setSelectedOption] = useState(null);
   const [showResult, setShowResult] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(false);
   const [timer, setTimer] = useState(0);
 
   useEffect(() => {
@@ -91,14 +92,26 @@ export default function QuizPage() {
   }
 
   const handleConfirm = () => {
-    if (selectedOption === null) return;
-    setShowResult(true);
+    if (currentCard?.options?.length > 0) {
+      if (selectedOption === null) return;
+      setShowResult(true);
+    } else {
+      setIsFlipped(true);
+      setShowResult(true);
+    }
   };
 
-  const handleNext = () => {
-    const isCorrect = selectedOption === (currentCard?.correctIndex ?? 0);
+  const handleNext = (selfAssessedCorrect = null) => {
+    let isCorrect;
+    if (currentCard?.options?.length > 0) {
+      isCorrect = selectedOption === (currentCard?.correctIndex ?? 0);
+    } else {
+      isCorrect = selfAssessedCorrect;
+    }
+    
     setSelectedOption(null);
     setShowResult(false);
+    setIsFlipped(false);
     nextQuestion(isCorrect);
   };
 
@@ -210,17 +223,42 @@ export default function QuizPage() {
       <main className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* Question Card */}
-          <div className="bg-white dark:bg-card-dark rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 dark:border-slate-800/50 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-2 h-full bg-primary/20"></div>
-            <h1 className="text-slate-900 dark:text-white text-2xl font-black leading-tight">
-              {currentCard?.front}
-            </h1>
-            <div className="mt-8 flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-              <span className="material-symbols-outlined text-primary text-xl">help_outline</span>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none">
-                {currentCard?.options?.length > 0 ? "Selecciona la correcta" : "Modo de Repaso Libre"}
-              </p>
-            </div>
+          <div className="perspective-1000">
+            <motion.div
+              animate={{ rotateY: isFlipped ? 180 : 0 }}
+              transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
+              style={{ transformStyle: 'preserve-3d' }}
+              className="relative w-full min-h-[250px]"
+            >
+              {/* Front Side */}
+              <div 
+                className="absolute inset-0 w-full h-full bg-white dark:bg-card-dark rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 dark:border-slate-800/50 flex flex-col items-center justify-center text-center"
+                style={{ backfaceVisibility: 'hidden' }}
+              >
+                <div className="absolute top-0 left-0 w-2 h-full bg-primary/20"></div>
+                <h1 className="text-slate-900 dark:text-white text-2xl font-black leading-tight">
+                  {currentCard?.front}
+                </h1>
+                <div className="mt-8 flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <span className="material-symbols-outlined text-primary text-xl">help_outline</span>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none">
+                    {currentCard?.options?.length > 0 ? "Selecciona la correcta" : "Tarjeta Básica - Voltea para ver"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Back Side (Only for Basic cards) */}
+              <div 
+                className="absolute inset-0 w-full h-full bg-gradient-to-br from-primary to-indigo-600 rounded-[2.5rem] p-8 shadow-2xl flex flex-col items-center justify-center text-center text-white"
+                style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+              >
+                <p className="text-xl font-bold leading-relaxed">{currentCard?.back}</p>
+                <div className="mt-6 flex items-center gap-2 px-3 py-1.5 bg-white/20 rounded-full">
+                   <span className="material-symbols-outlined text-xs">visibility</span>
+                   <span className="text-[10px] font-black uppercase tracking-widest">Respuesta</span>
+                </div>
+              </div>
+            </motion.div>
           </div>
 
           {/* Options Grid */}
@@ -277,25 +315,49 @@ export default function QuizPage() {
       {/* Floating Action Bar */}
       <footer className="p-6 shrink-0 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-xl border-t border-slate-100 dark:border-slate-800/50">
         <div className="max-w-2xl mx-auto">
-          {!showResult ? (
-            <button 
-              disabled={selectedOption === null && (currentCard?.options?.length > 0)}
-              onClick={handleConfirm}
-              className="flex w-full items-center justify-center rounded-2xl h-16 bg-primary text-white text-lg font-black shadow-2xl shadow-primary/40 disabled:opacity-50 active:scale-95 transition-all gap-2"
-            >
-              {currentCard?.options?.length > 0 ? (
-                <>CONFIRMAR RESPUESTA <span className="material-symbols-outlined">chevron_right</span></>
-              ) : (
-                <>PIENSO LA RESPUESTA <span className="material-symbols-outlined">visibility</span></>
-              )}
-            </button>
+          {currentCard?.options?.length > 0 ? (
+            !showResult ? (
+              <button 
+                disabled={selectedOption === null}
+                onClick={handleConfirm}
+                className="flex w-full items-center justify-center rounded-2xl h-16 bg-primary text-white text-lg font-black shadow-2xl shadow-primary/40 disabled:opacity-50 active:scale-95 transition-all gap-2"
+              >
+                CONFIRMAR RESPUESTA <span className="material-symbols-outlined">chevron_right</span>
+              </button>
+            ) : (
+              <button 
+                onClick={() => handleNext()}
+                className="flex w-full items-center justify-center rounded-2xl h-16 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-lg font-black shadow-2xl active:scale-95 transition-all gap-2"
+              >
+                CONTINUAR PRUEBA <span className="material-symbols-outlined text-2xl">arrow_forward</span>
+              </button>
+            )
           ) : (
-            <button 
-              onClick={handleNext}
-              className="flex w-full items-center justify-center rounded-2xl h-16 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-lg font-black shadow-2xl active:scale-95 transition-all gap-2"
-            >
-              CONTINUAR PRUEBA <span className="material-symbols-outlined text-2xl">arrow_forward</span>
-            </button>
+            !showResult ? (
+              <button 
+                onClick={handleConfirm}
+                className="flex w-full items-center justify-center rounded-2xl h-16 bg-primary text-white text-lg font-black shadow-2xl shadow-primary/40 active:scale-95 transition-all gap-2"
+              >
+                VER RESPUESTA <span className="material-symbols-outlined">visibility</span>
+              </button>
+            ) : (
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => handleNext(false)}
+                  className="flex-1 flex flex-col items-center justify-center rounded-2xl h-16 bg-rose-500 text-white font-black shadow-lg active:scale-95 transition-all"
+                >
+                  <span className="text-[10px] font-black tracking-widest leading-none mb-1">REPASAR</span>
+                  NO LA SABÍA
+                </button>
+                <button 
+                  onClick={() => handleNext(true)}
+                  className="flex-1 flex flex-col items-center justify-center rounded-2xl h-16 bg-emerald-500 text-white font-black shadow-lg active:scale-95 transition-all"
+                >
+                  <span className="text-[10px] font-black tracking-widest leading-none mb-1">PERFECTO</span>
+                  DOMINADA
+                </button>
+              </div>
+            )
           )}
         </div>
       </footer>

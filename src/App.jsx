@@ -14,21 +14,27 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import { useAppStore } from './store/useAppStore';
 
-// eslint-disable-next-line react/prop-types
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAppStore(state => state.isAuthenticated);
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return children;
 };
 
+const PublicRoute = ({ children }) => {
+  const isAuthenticated = useAppStore(state => state.isAuthenticated);
+  if (isAuthenticated) return <Navigate to="/" replace />;
+  return children;
+};
+
 function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       
       <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/decks" element={<DecksPage />} />
         <Route path="/decks/:deckId" element={<DeckDetailPage />} />
         <Route path="/study/:deckId" element={<StudyPage />} />

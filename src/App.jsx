@@ -21,12 +21,27 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  const isAuthenticated = useAppStore(state => state.isAuthenticated);
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      
+      {/* Raíz: si ya tiene sesión → dashboard, si no → login */}
+      <Route
+        path="/"
+        element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
+      />
+
+      {/* Rutas públicas: si ya está logueado no tiene sentido volver a login */}
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
+      />
+      <Route
+        path="/register"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Register />}
+      />
+
+      {/* Rutas protegidas */}
       <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/decks" element={<DecksPage />} />
@@ -39,6 +54,9 @@ function App() {
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
+
+      {/* Ruta desconocida → raíz */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
@@ -23,8 +24,22 @@ export default function Login() {
   return (
     <div className="min-h-screen w-full flex flex-col justify-center px-6 py-12 max-w-[430px] mx-auto bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100">
       <div className="text-center mb-10">
-        <h1 className="text-primary text-3xl font-bold mb-2 tracking-tight">EasyStudy</h1>
-        <p className="text-slate-500 text-sm">Acelera tu aprendizaje con IA</p>
+        <motion.img
+          src="/logo.png"
+          alt="EasyStudy Logo"
+          className="mx-auto w-48 mb-2"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+        />
+        <motion.p
+          className="text-slate-500 text-sm"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+        >
+          Acelera tu aprendizaje con IA
+        </motion.p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">

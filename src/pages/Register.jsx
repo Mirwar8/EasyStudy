@@ -15,7 +15,7 @@ export default function Register() {
     setErrorStr('');
     try {
       await register({ email, password, displayName });
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setErrorStr(err.message || 'Error al registrar usuario');
     }

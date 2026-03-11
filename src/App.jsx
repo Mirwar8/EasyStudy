@@ -20,17 +20,11 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-const PublicRoute = ({ children }) => {
-  const isAuthenticated = useAppStore(state => state.isAuthenticated);
-  if (isAuthenticated) return <Navigate to="/" replace />;
-  return children;
-};
-
 function App() {
   return (
     <Routes>
-      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
       
       <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>

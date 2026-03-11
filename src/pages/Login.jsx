@@ -14,7 +14,7 @@ export default function Login() {
     setErrorStr('');
     try {
       await login({ email, password });
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setErrorStr(err.message || 'Error al iniciar sesión');
     }

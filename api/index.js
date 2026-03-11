@@ -348,4 +348,7 @@ router.post("/stats", authMiddleware, async (req, res) => {
 app.use("/api", router);
 app.use("/", router);
 
-export default app;
+// Vercel serverless handler
+export default function handler(req, res) {
+  return app(req, res);
+}

@@ -193,6 +193,43 @@ router.post("/decks", authMiddleware, async (req, res) => {
   }
 });
 
+router.put("/decks/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, color, emoji } = req.body;
+    const result = await decksCollection.updateOne(
+      { _id: new ObjectId(id), userId: req.userId },
+      { $set: { title, description, color, emoji, updatedAt: new Date() } },
+    );
+    if (result.matchedCount === 0)
+      return res.status(404).json({ error: "Mazo no encontrado" });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Error al actualizar mazo" });
+  }
+});
+
+router.delete("/decks/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deckId = new ObjectId(id);
+    const result = await decksCollection.deleteOne({
+      _id: deckId,
+      userId: req.userId,
+    });
+    if (result.deletedCount === 0)
+      return res.status(404).json({ error: "Mazo no encontrado" });
+
+    // Cleanup: cards and summaries
+    await cardsCollection.deleteMany({ deckId, userId: req.userId });
+    await summariesCollection.deleteMany({ deckId, userId: req.userId });
+
+    res.json({ success: true, message: "Mazo y contenido eliminado" });
+  } catch (error) {
+    res.status(500).json({ error: "Error al eliminar mazo" });
+  }
+});
+
 router.get("/cards/:deckId", authMiddleware, async (req, res) => {
   try {
     const { deckId } = req.params;
@@ -228,6 +265,45 @@ router.post("/cards", authMiddleware, async (req, res) => {
     res.status(201).json({ ...newCard, _id: result.insertedId });
   } catch (error) {
     res.status(500).json({ error: "Error al crear tarjeta" });
+  }
+});
+
+router.put("/cards/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { front, back, options, correctIndex, type } = req.body;
+    const result = await cardsCollection.updateOne(
+      { _id: new ObjectId(id), userId: req.userId },
+      { $set: { front, back, options, correctIndex, type, updatedAt: new Date() } },
+    );
+    if (result.matchedCount === 0)
+      return res.status(404).json({ error: "Tarjeta no encontrada" });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Error al actualizar tarjeta" });
+  }
+});
+
+router.delete("/cards/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const cardId = new ObjectId(id);
+    // Encontrar mazo antes para decrementar cardCount
+    const card = await cardsCollection.findOne({ _id: cardId, userId: req.userId });
+    if (!card) return res.status(404).json({ error: "Tarjeta no encontrada" });
+
+    const result = await cardsCollection.deleteOne({ _id: cardId, userId: req.userId });
+    if (result.deletedCount === 0)
+      return res.status(404).json({ error: "Tarjeta no encontrada" });
+
+    await decksCollection.updateOne(
+      { _id: card.deckId, userId: req.userId },
+      { $inc: { cardCount: -1 } },
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Error al eliminar tarjeta" });
   }
 });
 
@@ -308,6 +384,37 @@ router.get("/summary/:id", authMiddleware, async (req, res) => {
     res.json(summary);
   } catch (error) {
     res.status(500).json({ error: "Error detalle resumen" });
+  }
+});
+
+router.put("/summaries/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, content } = req.body;
+    const result = await summariesCollection.updateOne(
+      { _id: new ObjectId(id), userId: req.userId },
+      { $set: { title, content, updatedAt: new Date() } },
+    );
+    if (result.matchedCount === 0)
+      return res.status(404).json({ error: "Resumen no encontrado" });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Error al actualizar resumen" });
+  }
+});
+
+router.delete("/summaries/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await summariesCollection.deleteOne({
+      _id: new ObjectId(id),
+      userId: req.userId,
+    });
+    if (result.deletedCount === 0)
+      return res.status(404).json({ error: "Resumen no encontrado" });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Error al eliminar resumen" });
   }
 });
 

@@ -406,6 +406,33 @@ const withTimeout = (promise, ms) => {
   ]);
 };
 
+// Función auxiliar para extraer JSON de una cadena que puede tener texto basura o markdown
+function extractJSON(text) {
+  try {
+    // Intentar encontrar un bloque JSON (arreglo o objeto)
+    const match = text.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+    if (!match) return null;
+    
+    // Limpiar posibles residuos de markdown si el match fue muy amplio
+    let jsonStr = match[0];
+    
+    // Intentar parsear
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    console.error("❌ Error al extraer JSON:", e.message);
+    // Intento desesperado: limpiar markdown manual
+    try {
+        const desperateClean = text
+            .replace(/```json/g, "")
+            .replace(/```/g, "")
+            .trim();
+        return JSON.parse(desperateClean);
+    } catch (e2) {
+        return null;
+    }
+  }
+}
+
 app.post("/ai/generate-cards", authMiddleware, async (req, res) => {
   try {
     const { text, count = 5 } = req.body;
@@ -464,11 +491,12 @@ Texto: """${text}"""`;
     }
 
     console.log("✅ Respuesta recibida, parseando JSON...");
-    const cleanJson = rawText
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
-    const cards = JSON.parse(cleanJson);
+    const cards = extractJSON(rawText);
+    
+    if (!cards || !Array.isArray(cards)) {
+      console.error("❌ El JSON extraído no es un arreglo válido:", rawText);
+      return res.status(500).json({ error: "La IA generó un formato JSON inválido" });
+    }
 
     console.log(`✅ ${cards.length} tarjetas generadas exitosamente`);
     res.json({ cards });

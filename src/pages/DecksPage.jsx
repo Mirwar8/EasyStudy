@@ -1,6 +1,9 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { useDecks } from '../hooks/useDecks';
 import { useAppStore } from '../store/useAppStore';
+import { apiFetch } from '../services/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { useState, useRef } from 'react';
 
 const COLORS = ['primary', 'secondary', 'success', 'warning', 'error'];
 const EMOJIS = ['📚', '🧪', '🌍', '📐', '🧠', '💻', '🎨'];
@@ -8,14 +11,103 @@ const EMOJIS = ['📚', '🧪', '🌍', '📐', '🧠', '💻', '🎨'];
 export default function DecksPage() {
   const navigate = useNavigate();
   const { decks, isLoading, deleteDeck } = useDecks();
-  const { openModal } = useAppStore();
-
-
+  const { openModal, addToast } = useAppStore();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef(null);
+  
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const handleDelete = async (id, e) => {
     e.preventDefault();
     e.stopPropagation();
     if(window.confirm('¿Seguro que deseas eliminar este mazo?')) {
       await deleteDeck(id);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const allDecks = await apiFetch("/decks");
+      const exportData = [];
+
+      for (const deck of allDecks) {
+        const cards = await apiFetch(`/cards/${deck._id}`);
+        // Limpiamos IDs y campos de DB para que la importación sea limpia
+        const { _id, userId, createdAt, updatedAt, ...cleanDeck } = deck;
+        const cleanCards = cards.map(({ _id, deckId, userId, createdAt, updatedAt, ...c }) => c);
+        
+        exportData.push({
+          deck: cleanDeck,
+          cards: cleanCards
+        });
+      }
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'easystudy-decks.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      addToast('Mazos exportados correctamente', 'success');
+    } catch (error) {
+      console.error("Error al exportar:", error);
+      addToast('Error al exportar los mazos', 'error');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsImporting(true);
+      const text = await file.text();
+      const importedData = JSON.parse(text);
+
+      if (!Array.isArray(importedData)) {
+        throw new Error("El archivo no tiene el formato correcto.");
+      }
+
+      let successCount = 0;
+
+      for (const item of importedData) {
+        if (!item.deck || !item.deck.title) continue; // Validación básica
+
+        // 1. Crear el mazo
+        const newDeck = await apiFetch("/decks", {
+          method: "POST",
+          body: JSON.stringify(item.deck),
+        });
+
+        // 2. Crear sus tarjetas si tiene
+        if (Array.isArray(item.cards) && item.cards.length > 0) {
+          for (const card of item.cards) {
+            await apiFetch("/cards", {
+              method: "POST",
+              body: JSON.stringify({ ...card, deckId: newDeck._id }),
+            });
+          }
+        }
+        successCount++;
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["decks"] });
+      addToast(`${successCount} mazo(s) importado(s) correctamente`, 'success');
+    } catch (error) {
+      console.error("Error al importar:", error);
+      addToast('Error al importar el archivo. Verifica el formato.', 'error');
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''; // Resetear input
+      }
     }
   };
 
@@ -79,6 +171,43 @@ export default function DecksPage() {
           ))}
         </div>
       )}
+
+      {/* Import / Export Buttons Section */}
+      <div className="mt-8 flex flex-wrap gap-4 items-center justify-center border-t border-slate-200 dark:border-slate-800 pt-6">
+        <input 
+          type="file" 
+          accept=".json" 
+          className="hidden" 
+          ref={fileInputRef} 
+          onChange={handleImport} 
+        />
+        
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isImporting}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+        >
+          {isImporting ? (
+             <span className="material-symbols-outlined animate-spin text-lg">autorenew</span>
+          ) : (
+             <span className="material-symbols-outlined text-lg">upload</span>
+          )}
+          {isImporting ? 'Importando...' : 'Importar'}
+        </button>
+
+        <button
+          onClick={handleExport}
+          disabled={isExporting || decks.length === 0 || isLoading}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+        >
+          {isExporting ? (
+            <span className="material-symbols-outlined animate-spin text-lg">autorenew</span>
+          ) : (
+            <span className="material-symbols-outlined text-lg">download</span>
+          )}
+          {isExporting ? 'Exportando...' : 'Exportar'}
+        </button>
+      </div>
 
     </div>
   );

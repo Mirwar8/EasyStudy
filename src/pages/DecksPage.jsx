@@ -17,11 +17,38 @@ export default function DecksPage() {
   
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
   const handleDelete = async (id, e) => {
     e.preventDefault();
     e.stopPropagation();
     if(window.confirm('¿Seguro que deseas eliminar este mazo?')) {
       await deleteDeck(id);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (decks.length === 0) return;
+    const confirmed = window.confirm(
+      `¿Seguro que deseas eliminar los ${decks.length} mazo(s) y todas sus tarjetas? Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) return;
+
+    // Segunda confirmación para acción destructiva
+    const doubleConfirmed = window.confirm('⚠️ Última advertencia: ¿Confirmas que deseas eliminar TODOS tus mazos?');
+    if (!doubleConfirmed) return;
+
+    try {
+      setIsDeletingAll(true);
+      for (const deck of decks) {
+        await apiFetch(`/decks/${deck._id}`, { method: 'DELETE' });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['decks'] });
+      addToast('Todos los mazos han sido eliminados', 'success');
+    } catch (error) {
+      console.error('Error al eliminar mazos:', error);
+      addToast('Error al eliminar los mazos', 'error');
+    } finally {
+      setIsDeletingAll(false);
     }
   };
 
@@ -172,7 +199,7 @@ export default function DecksPage() {
         </div>
       )}
 
-      {/* Import / Export Buttons Section */}
+      {/* Import / Export / Delete All Buttons Section */}
       <div className="mt-8 flex flex-wrap gap-4 items-center justify-center border-t border-slate-200 dark:border-slate-800 pt-6">
         <input 
           type="file" 
@@ -206,6 +233,19 @@ export default function DecksPage() {
             <span className="material-symbols-outlined text-lg">download</span>
           )}
           {isExporting ? 'Exportando...' : 'Exportar'}
+        </button>
+
+        <button
+          onClick={handleDeleteAll}
+          disabled={isDeletingAll || decks.length === 0 || isLoading}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 font-medium hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors disabled:opacity-50"
+        >
+          {isDeletingAll ? (
+            <span className="material-symbols-outlined animate-spin text-lg">autorenew</span>
+          ) : (
+            <span className="material-symbols-outlined text-lg">delete_sweep</span>
+          )}
+          {isDeletingAll ? 'Eliminando...' : 'Eliminar Todo'}
         </button>
       </div>
 
